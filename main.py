@@ -53,7 +53,7 @@ def oauth_start():
         "client_id": CANVA_CLIENT_ID,
         "redirect_uri": CANVA_REDIRECT_URI,
         "response_type": "code",
-        "scope": "profile:read design:content:read design:meta:read",
+        "scope": "profile:read design:content:read design:meta:read brandtemplate:meta:read",
         "state": state,
         "code_challenge": code_challenge,
         "code_challenge_method": "S256",
@@ -136,6 +136,8 @@ def token_check():
 
 
 EXPORT_URL = "https://api.canva.com/rest/v1/exports"
+BRAND_TEMPLATES_URL = "https://api.canva.com/rest/v1/brand-templates"
+AUTOFILLS_URL = "https://api.canva.com/rest/v1/autofills"
 
 
 def get_access_token():
@@ -147,6 +149,138 @@ def get_access_token():
         )
     return token_data["access_token"]
 
+
+@app.get("/brand-templates")
+def list_brand_templates(dataset: str = "non_empty", limit: int = 20):
+    """
+    Canva Brand Template 목록을 조회합니다.
+    dataset:
+      - any: dataset 필드가 있든 없든 전체 조회
+      - non_empty: Autofill 가능한 dataset 필드가 있는 템플릿만 조회
+    """
+    access_token = get_access_token()
+
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+    }
+
+    params = {
+        "dataset": dataset,
+        "limit": limit,
+    }
+
+    response = requests.get(
+        BRAND_TEMPLATES_URL,
+        headers=headers,
+        params=params,
+        timeout=30,
+    )
+
+    if response.status_code >= 400:
+        raise HTTPException(
+            status_code=response.status_code,
+            detail=response.text,
+        )
+
+    return response.json()
+
+
+@app.get("/brand-templates/{brand_template_id}/dataset")
+def get_brand_template_dataset(brand_template_id: str):
+    """
+    특정 Brand Template의 Autofill 필드 구조를 조회합니다.
+    예: title, subtitle, body_1, image_1 같은 필드 확인용
+    """
+    access_token = get_access_token()
+
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+    }
+
+    response = requests.get(
+        f"{BRAND_TEMPLATES_URL}/{brand_template_id}/dataset",
+        headers=headers,
+        timeout=30,
+    )
+
+    if response.status_code >= 400:
+        raise HTTPException(
+            status_code=response.status_code,
+            detail=response.text,
+        )
+
+    return response.json()
+
+
+@app.post("/autofill/start")
+def autofill_start(brand_template_id: str, title: str, data: dict):
+    """
+    Brand Template에 데이터를 채워 새 Canva 디자인을 생성합니다.
+    
+    주의:
+    이 endpoint는 Swagger/FastAPI docs에서 테스트하는 게 더 편합니다.
+    POST body 예:
+    {
+      "headline": {
+        "type": "text",
+        "text": "샤넬이 인도를 보는 방식"
+      }
+    }
+    """
+    access_token = get_access_token()
+
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json",
+    }
+
+    payload = {
+        "brand_template_id": brand_template_id,
+        "title": title,
+        "data": data,
+    }
+
+    response = requests.post(
+        AUTOFILLS_URL,
+        headers=headers,
+        json=payload,
+        timeout=30,
+    )
+
+    if response.status_code >= 400:
+        raise HTTPException(
+            status_code=response.status_code,
+            detail=response.text,
+        )
+
+    return response.json()
+
+
+@app.get("/autofill/check/{job_id}")
+def autofill_check(job_id: str):
+    """
+    Autofill job 상태를 확인합니다.
+    성공하면 새로 생성된 Canva design 정보가 반환됩니다.
+    """
+    access_token = get_access_token()
+
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+    }
+
+    response = requests.get(
+        f"{AUTOFILLS_URL}/{job_id}",
+        headers=headers,
+        timeout=30,
+    )
+
+    if response.status_code >= 400:
+        raise HTTPException(
+            status_code=response.status_code,
+            detail=response.text,
+        )
+
+    return response.json()
 
 @app.post("/export/start")
 def export_start(design_id: str, file_type: str = "png"):
@@ -212,3 +346,7 @@ def export_check(export_id: str):
         )
 
     return response.json()
+
+/capabilities
+/brand-templates
+/brand-templates/{template_id}/dataset
