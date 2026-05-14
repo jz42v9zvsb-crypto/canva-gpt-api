@@ -128,8 +128,6 @@ def oauth_start():
         "profile:read "
         "design:content:read "
         "design:meta:read "
-        "brandtemplate:meta:read "
-        "brandtemplate:content:read"
     )
 
     params = {
